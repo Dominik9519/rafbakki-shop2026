@@ -15,8 +15,8 @@ export async function POST(req: Request) {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    // secure: true, // możesz włączyć na produkcji (HTTPS)
-    // maxAge: 60 * 60 * 8, // 8h, opcjonalnie
+    // secure: true, // możesz włączyć w produkcji (HTTPS)
+    // maxAge: 60 * 60 * 8,
   });
   return res;
 }
