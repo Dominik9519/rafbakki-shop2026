@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { requireAdmin } from "@/lib/auth";
 import { listProducts } from "@/lib/db";
 import AdminProducts from "./AdminProducts";
