@@ -24,7 +24,6 @@ export default function AdminForm({ initial }: { initial?: any }) {
       price: parsed.price,
       description: parsed.description,
       imageUrl: parsed.imageUrl,
-      createdAt: Date.now(),
     });
     revalidatePath("/admin");
     revalidatePath("/");
