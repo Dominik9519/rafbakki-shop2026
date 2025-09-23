@@ -4,6 +4,8 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const input = (form.get("password") ?? "").toString();
   const target = process.env.ADMIN_PASSWORD || "";
+  console.log("DEBUG LOGIN", { input, targetSet: !!target, match: input === target });
+
   const urlBase = new URL(req.url);
 
   if (!target || input !== target) {
@@ -15,8 +17,7 @@ export async function POST(req: Request) {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    // secure: true, // możesz włączyć w produkcji (HTTPS)
-    // maxAge: 60 * 60 * 8,
+    // secure: true, // jeśli HTTPS tylko na prod, lokalnie zostaw false
   });
   return res;
 }
