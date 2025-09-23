@@ -1,0 +1,18 @@
+[
+  {
+    "id": "nvr4108hs-ei",
+    "name": "IP DAHUA NVR4108HS-EI",
+    "price": 22000,
+    "imageUrl": "/images/nvr4108hs-ei.png",
+    "description": "Rekstrarstýring fyrir allt að 8 myndavélar...",
+    "category": "NVR"
+  },
+  {
+    "id": "ipc-hdw1639t-a-il-0280b-s6",
+    "name": "IP DAHUA IPC-HDW1639T-A-IL-0280B-S6",
+    "price": 18000,
+    "imageUrl": "/images/ipc-hdw1639t.png",
+    "description": "16MP, Smart H.265+, ONVIF...",
+    "category": "Kamery"
+  }
+]
