@@ -15,35 +15,43 @@ export type Product = {
 };
 
 const USE_BLOB = process.env.USE_BLOB === "true";
-const BLOB_PATH = process.env.BLOB_KEY || "products/products.json";
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN; // opcjonalny – do dev
+const BLOB_PATH = "products/products.json"; // stała ścieżka
+const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
 let memory: Product[] | null = Array.isArray(seed) ? [...seed] : null;
 let loadedFromBlob = false;
 
+async function ensureFileExists() {
+  if (!USE_BLOB) return;
+  const files = await list({ prefix: BLOB_PATH, token: TOKEN });
+  const file = files.blobs.find((b) => b.pathname === BLOB_PATH);
+  if (!file) {
+    // jeśli plik nie istnieje – zapisz seed
+    await put(BLOB_PATH, JSON.stringify(memory ?? [], null, 2), {
+      access: "public",
+      contentType: "application/json",
+      token: TOKEN,
+    });
+  }
+}
+
 async function readFromBlob(): Promise<Product[] | null> {
   if (!USE_BLOB) return null;
-  try {
-    const files = await list({ prefix: BLOB_PATH, token: TOKEN });
-    const file = files.blobs.find((b) => b.pathname === BLOB_PATH);
-    if (!file) return null;
+  await ensureFileExists();
+  const files = await list({ prefix: BLOB_PATH, token: TOKEN });
+  const file = files.blobs.find((b) => b.pathname === BLOB_PATH);
+  if (!file) return null;
 
-    const res = await fetch(file.url, { cache: "no-store" });
-    if (!res.ok) return null;
-    const json = await res.json();
-    const items = Array.isArray(json) ? json : json?.items;
-    if (!Array.isArray(items)) return null;
-    return items as Product[];
-  } catch (err) {
-    console.error("readFromBlob error", err);
-    return null;
-  }
+  const res = await fetch(file.url + "?cache-bust=" + Date.now(), { cache: "no-store" });
+  if (!res.ok) return null;
+  const json = await res.json();
+  const items = Array.isArray(json) ? json : json?.items;
+  return Array.isArray(items) ? (items as Product[]) : [];
 }
 
 async function writeToBlob(items: Product[]): Promise<PutBlobResult | null> {
   if (!USE_BLOB) return null;
-  const data = JSON.stringify(items, null, 2);
-  return await put(BLOB_PATH, data, {
+  return await put(BLOB_PATH, JSON.stringify(items, null, 2), {
     access: "public",
     contentType: "application/json",
     token: TOKEN,
@@ -53,12 +61,8 @@ async function writeToBlob(items: Product[]): Promise<PutBlobResult | null> {
 async function ensureLoaded() {
   if (loadedFromBlob) return;
   const blob = await readFromBlob();
-  if (blob && Array.isArray(blob)) {
-    memory = blob;
-    loadedFromBlob = true;
-  } else if (memory == null) {
-    memory = [];
-  }
+  memory = blob ?? memory ?? [];
+  loadedFromBlob = true;
 }
 
 export async function listProducts(): Promise<Product[]> {
@@ -83,6 +87,7 @@ export async function saveProduct(p: Product): Promise<void> {
   }
   memory = items;
   await writeToBlob(items);
+  loadedFromBlob = false; // wymuś ponowne wczytanie przy następnym requestcie
 }
 
 export async function deleteProduct(id: string): Promise<void> {
@@ -90,31 +95,15 @@ export async function deleteProduct(id: string): Promise<void> {
   const items = (memory ?? []).filter((p) => p.id !== id);
   memory = items;
   await writeToBlob(items);
+  loadedFromBlob = false;
 }
 
-export async function clearAllProducts(): Promise<void> {
-  await ensureLoaded();
-  memory = [];
-  await writeToBlob([]);
-}
-
-export async function replaceAllProducts(items: Product[]): Promise<void> {
-  await ensureLoaded();
-  memory = [...items];
-  await writeToBlob(memory);
-}
-
-export async function exportAll(): Promise<{ exportedAt: string; items: Product[] }> {
-  await ensureLoaded();
-  return { exportedAt: new Date().toISOString(), items: memory ?? [] };
-}
 export async function listCategories(): Promise<string[]> {
   await ensureLoaded();
   const items = memory ?? [];
   const set = new Set<string>();
   for (const p of items) {
-    const c = p.category?.trim();
-    if (c) set.add(c);
+    if (p.category) set.add(p.category);
   }
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
