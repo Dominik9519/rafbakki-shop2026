@@ -15,7 +15,8 @@ export type Product = {
 };
 
 // === Konfiguracja trwałego zapisu (Vercel Blob) ===
-const USE_BLOB = process.env.USE_BLOB === "true";
+const RUNTIME = process.env.NEXT_RUNTIME; // 'nodejs' | 'edge' | undefined (w buildzie jest undefined)
+const USE_BLOB = process.env.USE_BLOB === "true" && !!RUNTIME;
 const BLOB_PATH = "products/products.json"; // stała ścieżka w Blob
 const TOKEN = process.env.BLOB_READ_WRITE_TOKEN; // opcjonalnie do dev lokalnego
 
