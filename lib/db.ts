@@ -3,6 +3,8 @@ import seed from "@/data/products.json";
 import type { PutBlobResult } from "@vercel/blob";
 import { put, list } from "@vercel/blob";
 
+/* ===== Typy ===== */
+
 export type Product = {
   id: string;
   name: string;
@@ -14,56 +16,76 @@ export type Product = {
   updatedAt?: number;
 };
 
-// === Konfiguracja trwałego zapisu (Vercel Blob) ===
-const RUNTIME = process.env.NEXT_RUNTIME; // 'nodejs' | 'edge' | undefined (w buildzie jest undefined)
-const USE_BLOB = process.env.USE_BLOB === "true" && !!RUNTIME;
-const BLOB_PATH = "products/products.json"; // stała ścieżka w Blob
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN; // opcjonalnie do dev lokalnego
+/* ===== Konfiguracja ===== */
 
-// Pamięć procesu – zasilamy „seedem”, jeśli jest tablicą:
+const BLOB_PATH = "products/products.json"; // stała ścieżka w Vercel Blob
+const TOKEN = process.env.BLOB_READ_WRITE_TOKEN; // opcjonalny (np. lokalnie)
+
+/** Czy możemy używać Blob w tym środowisku? (runtime only, nie w buildzie) */
+function canUseBlob(): boolean {
+  // NEXT_RUNTIME: 'nodejs' | 'edge' | undefined (w buildzie: undefined)
+  const runtime = process.env.NEXT_RUNTIME || (process.env.VERCEL ? "nodejs" : "");
+  return process.env.USE_BLOB === "true" && !!runtime;
+}
+
+/* ===== Pamięć procesu (cache) ===== */
+
 let memory: Product[] | null = Array.isArray(seed) ? [...(seed as Product[])] : null;
 let loadedFromBlob = false;
 
-/** Upewnij się, że w Blob istnieje plik z danymi; jeśli nie – utwórz go na podstawie memory/seed. */
+/* ===== Helpery Blob (z try/catch i fallbackiem) ===== */
+
 async function ensureFileExists() {
-  if (!USE_BLOB) return;
-  const files = await list({ prefix: BLOB_PATH, token: TOKEN });
-  const exists = files.blobs.some((b) => b.pathname === BLOB_PATH);
-  if (!exists) {
-    await put(BLOB_PATH, JSON.stringify(memory ?? [], null, 2), {
+  if (!canUseBlob()) return;
+  try {
+    const files = await list({ prefix: BLOB_PATH, token: TOKEN });
+    const exists = files.blobs.some((b) => b.pathname === BLOB_PATH);
+    if (!exists) {
+      await put(BLOB_PATH, JSON.stringify(memory ?? [], null, 2), {
+        access: "public",
+        contentType: "application/json",
+        token: TOKEN,
+      });
+    }
+  } catch (err) {
+    console.error("[BLOB ensureFileExists] fallback to memory:", err);
+  }
+}
+
+async function readFromBlob(): Promise<Product[] | null> {
+  if (!canUseBlob()) return null;
+  try {
+    await ensureFileExists();
+    const files = await list({ prefix: BLOB_PATH, token: TOKEN });
+    const file = files.blobs.find((b) => b.pathname === BLOB_PATH);
+    if (!file) return null;
+
+    // cache-bust aby ominąć CDN
+    const res = await fetch(file.url + "?cb=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const items = Array.isArray(json) ? json : json?.items;
+    return Array.isArray(items) ? (items as Product[]) : [];
+  } catch (err) {
+    console.error("[BLOB read] fallback to memory:", err);
+    return null; // nie crashujemy SSR
+  }
+}
+
+async function writeToBlob(items: Product[]): Promise<PutBlobResult | null> {
+  if (!canUseBlob()) return null;
+  try {
+    return await put(BLOB_PATH, JSON.stringify(items, null, 2), {
       access: "public",
       contentType: "application/json",
       token: TOKEN,
     });
+  } catch (err) {
+    console.error("[BLOB write] fallback to memory:", err);
+    return null; // utrata trwałości, ale UI nie wybucha
   }
 }
 
-/** Odczytaj listę produktów z Blob (z bustem cache). */
-async function readFromBlob(): Promise<Product[] | null> {
-  if (!USE_BLOB) return null;
-  await ensureFileExists();
-  const files = await list({ prefix: BLOB_PATH, token: TOKEN });
-  const file = files.blobs.find((b) => b.pathname === BLOB_PATH);
-  if (!file) return null;
-
-  const res = await fetch(file.url + "?cb=" + Date.now(), { cache: "no-store" });
-  if (!res.ok) return null;
-  const json = await res.json();
-  const items = Array.isArray(json) ? json : json?.items;
-  return Array.isArray(items) ? (items as Product[]) : [];
-}
-
-/** Zapisz pełną listę produktów do Blob. */
-async function writeToBlob(items: Product[]): Promise<PutBlobResult | null> {
-  if (!USE_BLOB) return null;
-  return await put(BLOB_PATH, JSON.stringify(items, null, 2), {
-    access: "public",
-    contentType: "application/json",
-    token: TOKEN,
-  });
-}
-
-/** Załaduj dane do pamięci – z Blob jeśli dostępny, inaczej z seeda. */
 async function ensureLoaded() {
   if (loadedFromBlob) return;
   const blob = await readFromBlob();
@@ -71,7 +93,7 @@ async function ensureLoaded() {
   loadedFromBlob = true;
 }
 
-// ===== Publiczne API =====
+/* ===== Publiczne API ===== */
 
 export async function listProducts(): Promise<Product[]> {
   await ensureLoaded();
@@ -88,11 +110,13 @@ export async function saveProduct(p: Product): Promise<void> {
   const now = Date.now();
   const items = memory ?? [];
   const i = items.findIndex((x) => x.id === p.id);
+
   if (i >= 0) {
     items[i] = { ...items[i], ...p, updatedAt: now };
   } else {
     items.unshift({ ...p, createdAt: now, updatedAt: now });
   }
+
   memory = items;
   await writeToBlob(items);
   loadedFromBlob = false; // wymuś świeży odczyt przy kolejnym żądaniu
