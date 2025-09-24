@@ -6,9 +6,7 @@ export default function AdminLogin({ searchParams }: { searchParams?: { error?: 
       <form action="/api/admin/login" method="post" className="space-y-3">
         <input name="password" type="password" placeholder="Admin password" className="input w-full" required />
         {hasError && (
-          <p className="text-sm text-red-400 bg-red-950/30 p-2 rounded">
-            ❌ Nieprawidłowe hasło lub brak ADMIN_PASSWORD w ENV
-          </p>
+          <p className="text-sm text-red-400 bg-red-950/30 p-2 rounded">❌ Nieprawidłowe hasło lub brak ADMIN_PASSWORD.</p>
         )}
         <button type="submit" className="btn w-full">Log in</button>
       </form>

@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import { requireAdmin } from "@/lib/auth";
 import { listProducts } from "@/lib/db";
 import AdminProducts from "./AdminProducts";
