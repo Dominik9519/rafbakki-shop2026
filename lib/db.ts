@@ -108,3 +108,13 @@ export async function exportAll(): Promise<{ exportedAt: string; items: Product[
   await ensureLoaded();
   return { exportedAt: new Date().toISOString(), items: memory ?? [] };
 }
+export async function listCategories(): Promise<string[]> {
+  await ensureLoaded();
+  const items = memory ?? [];
+  const set = new Set<string>();
+  for (const p of items) {
+    const c = p.category?.trim();
+    if (c) set.add(c);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
