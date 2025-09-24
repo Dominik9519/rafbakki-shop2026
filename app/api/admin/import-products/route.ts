@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"; // <— wyłącz SSG na tym route
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { replaceAllProducts, type Product } from "@/lib/db";
 // import { requireAdmin } from "@/lib/auth";
